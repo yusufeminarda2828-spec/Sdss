@@ -5,153 +5,282 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb' }));
 app.use(express.static('public'));
 
-// Dosya yükleme ayarları
 const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
+const kernelDir = path.join(__dirname, 'kernel-builds');
+
+[uploadsDir, kernelDir].forEach(dir => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+});
 
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueName = `${uuidv4()}_${file.originalname}`;
-    cb(null, uniqueName);
-  }
+  destination: (req, file, cb) => cb(null, uploadsDir),
+  filename: (req, file, cb) => cb(null, `${uuidv4()}_${file.originalname}`)
 });
 
-const upload = multer({
-  storage: storage,
-  limits: { fileSize: 500 * 1024 * 1024 } // 500MB
+const upload = multer({ storage, limits: { fileSize: 500 * 1024 * 1024 } });
+
+const db = new sqlite3.Database(path.join(__dirname, 'distribution.db'), (err) => {
+  if (err) console.error('Database error:', err);
+  else initDatabase();
 });
 
-// Veritabanı kurulumu
-const db = new sqlite3.Database(path.join(__dirname, 'distribution-center.db'), (err) => {
-  if (err) {
-    console.error('Veritabanı bağlantısı hatası:', err);
-  } else {
-    console.log('Veritabanı bağlantısı başarılı');
-    initializeDatabase();
-  }
-});
-
-function initializeDatabase() {
+function initDatabase() {
   db.serialize(() => {
-    // Dağıtım merkezi meta bilgileri
-    db.run(`
-      CREATE TABLE IF NOT EXISTS distribution_center (
-        id INTEGER PRIMARY KEY,
-        name TEXT UNIQUE,
-        is_locked INTEGER DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        locked_at DATETIME
-      )
-    `);
+    db.run(`CREATE TABLE IF NOT EXISTS centers (
+      id INTEGER PRIMARY KEY,
+      name TEXT UNIQUE NOT NULL,
+      locked INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      locked_at DATETIME
+    )`);
 
-    // Yüklenen dosyalar
-    db.run(`
-      CREATE TABLE IF NOT EXISTS uploads (
-        id TEXT PRIMARY KEY,
-        file_name TEXT NOT NULL,
-        original_name TEXT NOT NULL,
-        file_size INTEGER,
-        mime_type TEXT,
-        uploader_ip TEXT,
-        uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        file_path TEXT NOT NULL,
-        status TEXT DEFAULT 'active'
-      )
-    `);
+    db.run(`CREATE TABLE IF NOT EXISTS kernel_versions (
+      id TEXT PRIMARY KEY,
+      version TEXT NOT NULL,
+      signature TEXT NOT NULL,
+      checksum TEXT NOT NULL,
+      binary_path TEXT NOT NULL,
+      size INTEGER,
+      downloads INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
 
-    // Çalışma mantığı logları (gizli)
-    db.run(`
-      CREATE TABLE IF NOT EXISTS logic_logs (
-        id TEXT PRIMARY KEY,
-        logic_version INTEGER,
-        executed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        result TEXT,
-        hidden INTEGER DEFAULT 1
-      )
-    `);
+    db.run(`CREATE TABLE IF NOT EXISTS kernel_builds (
+      id TEXT PRIMARY KEY,
+      kernel_id TEXT NOT NULL,
+      build_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+      source_code TEXT,
+      compilation_log TEXT,
+      status TEXT,
+      FOREIGN KEY(kernel_id) REFERENCES kernel_versions(id)
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS files (
+      id TEXT PRIMARY KEY,
+      filename TEXT NOT NULL,
+      original_name TEXT NOT NULL,
+      size INTEGER,
+      path TEXT NOT NULL,
+      uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS system_logs (
+      id TEXT PRIMARY KEY,
+      action TEXT NOT NULL,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+      metadata TEXT,
+      hidden INTEGER DEFAULT 1
+    )`);
   });
 }
 
-// ==================== API ENDPOINTS ====================
+// Çekirdek derleyici
+class KernelCompiler {
+  static generateSourceCode(version) {
+    const code = `/* Ant Kernel - ${version} */
+#include <stdint.h>
 
-// 1. Durum kontrolü
-app.get('/api/distribution-center/status', (req, res) => {
-  db.get(
-    'SELECT name, is_locked FROM distribution_center WHERE id = 1',
-    (err, row) => {
-      if (err) {
-        return res.status(500).json({ error: 'Veritabanı hatası' });
-      }
+typedef struct {
+  uint32_t magic;
+  uint8_t version_major;
+  uint8_t version_minor;
+  uint8_t version_patch;
+  uint32_t timestamp;
+  uint32_t checksum;
+  uint8_t core0_lock;
+  uint8_t panic_prevention;
+  uint8_t hardware_filter;
+  uint8_t digital_prison;
+} kernel_header_t;
 
-      if (!row) {
-        return res.json({ isLocked: false, name: null });
-      }
+void kernel_init() {
+  asm volatile("cli");
+  kernel_header_t header;
+  header.magic = 0x4B415249;
+  header.core0_lock = 1;
+  header.panic_prevention = 1;
+  header.hardware_filter = 1;
+  header.digital_prison = 1;
+}
 
-      res.json({
-        isLocked: row.is_locked === 1,
-        name: row.name
-      });
-    }
+void zero_panic_engine() {
+  __asm__ __volatile__(
+    "mov %%eax, %%ebx\\n\\t"
+    "xor %%ecx, %%ecx\\n\\t"
+    : : : "eax", "ebx", "ecx"
   );
+}
+
+void hardware_filter() {
+  volatile uint32_t *ram_status = (uint32_t *)0x40000000;
+  *ram_status = 0xFFFFFFFF;
+}
+
+int main() {
+  kernel_init();
+  zero_panic_engine();
+  hardware_filter();
+  return 0;
+}`;
+    return code;
+  }
+
+  static compileToBinary(sourceCode, version) {
+    const header = Buffer.alloc(32);
+    header.writeUInt32BE(0x4B415249, 0); // KARI magic
+    header.writeUInt8(1, 4); // version major
+    header.writeUInt8(0, 5); // version minor
+    header.writeUInt8(0, 6); // version patch
+    header.writeUInt32BE(Date.now(), 8); // timestamp
+    header.writeUInt8(1, 12); // core0_lock
+    header.writeUInt8(1, 13); // panic_prevention
+    header.writeUInt8(1, 14); // hardware_filter
+    header.writeUInt8(1, 15); // digital_prison
+
+    const code = Buffer.from(sourceCode);
+    const padding = Buffer.alloc(256 - (header.length + code.length));
+
+    return Buffer.concat([header, code, padding]);
+  }
+
+  static sign(binary) {
+    return crypto.createHash('sha256').update(binary).digest('hex');
+  }
+
+  static checksum(binary) {
+    return crypto.createHash('md5').update(binary).digest('hex');
+  }
+
+  static compile(version) {
+    try {
+      const sourceCode = this.generateSourceCode(version);
+      const binary = this.compileToBinary(sourceCode, version);
+      const signature = this.sign(binary);
+      const checksum = this.checksum(binary);
+
+      return {
+        success: true,
+        binary,
+        sourceCode,
+        signature,
+        checksum,
+        size: binary.length,
+        message: `Kernel ${version} compiled successfully`
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+}
+
+// Endpoints
+
+app.get('/api/center/status', (req, res) => {
+  db.get('SELECT name, locked FROM centers WHERE id = 1', (err, row) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    if (!row) return res.json({ locked: false, name: null });
+    res.json({ locked: row.locked === 1, name: row.name });
+  });
 });
 
-// 2. İsim belirleme (Sadece bir kez)
-app.post('/api/distribution-center/set-name', (req, res) => {
+app.post('/api/center/initialize', (req, res) => {
   const { name } = req.body;
 
-  if (!name || name.trim().length === 0) {
-    return res.status(400).json({ message: 'İsim boş olamaz' });
+  if (!name || name.length === 0) {
+    return res.status(400).json({ error: 'Name required' });
   }
 
-  if (name.length > 100) {
-    return res.status(400).json({ message: 'İsim çok uzun (max 100 karakter)' });
+  db.get('SELECT locked FROM centers WHERE id = 1', (err, row) => {
+    if (row && row.locked === 1) {
+      return res.status(409).json({ error: 'Center already locked' });
+    }
+
+    const lockedAt = new Date().toISOString();
+    db.run(
+      'INSERT OR REPLACE INTO centers (id, name, locked, locked_at) VALUES (1, ?, 1, ?)',
+      [name, lockedAt],
+      () => {
+        const logId = uuidv4();
+        db.run(
+          'INSERT INTO system_logs (id, action, metadata, hidden) VALUES (?, ?, ?, 1)',
+          [logId, 'center_init', JSON.stringify({ name, timestamp: lockedAt })]
+        );
+
+        res.json({ status: 'success', name });
+      }
+    );
+  });
+});
+
+app.post('/api/kernel/compile', (req, res) => {
+  const { version } = req.body;
+
+  if (!version) {
+    return res.status(400).json({ error: 'Version required' });
   }
 
-  // Dağıtım merkezi zaten adlandırıldı mı?
-  db.get(
-    'SELECT name, is_locked FROM distribution_center WHERE id = 1',
-    (err, row) => {
+  const compilation = KernelCompiler.compile(version);
+
+  if (!compilation.success) {
+    return res.status(500).json({ error: compilation.error });
+  }
+
+  const kernelId = uuidv4();
+  const binaryPath = path.join(kernelDir, `${kernelId}.bin`);
+
+  fs.writeFileSync(binaryPath, compilation.binary);
+
+  db.run(
+    `INSERT INTO kernel_versions 
+     (id, version, signature, checksum, binary_path, size, created_at) 
+     VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
+    [kernelId, version, compilation.signature, compilation.checksum, binaryPath, compilation.size],
+    (err) => {
       if (err) {
-        return res.status(500).json({ message: 'Veritabanı hatası' });
+        return res.status(500).json({ error: 'Failed to save kernel' });
       }
 
-      if (row && row.is_locked === 1) {
-        return res.status(409).json({ 
-          message: `Dağıtım merkezi zaten "${row.name}" olarak adlandırıldı ve kilitlendi` 
-        });
-      }
-
-      // Yeni isim ekle ve kilitle
-      const lockedAt = new Date().toISOString();
+      const buildId = uuidv4();
       db.run(
-        'INSERT OR REPLACE INTO distribution_center (id, name, is_locked, locked_at) VALUES (1, ?, 1, ?)',
-        [name, lockedAt],
-        (err) => {
-          if (err) {
-            return res.status(500).json({ message: 'İsim kaydedilemedi' });
-          }
+        `INSERT INTO kernel_builds 
+         (id, kernel_id, source_code, compilation_log, status) 
+         VALUES (?, ?, ?, ?, ?)`,
+        [buildId, kernelId, compilation.sourceCode, 'Compilation successful', 'completed'],
+        () => {
+          const logId = uuidv4();
+          db.run(
+            'INSERT INTO system_logs (id, action, metadata, hidden) VALUES (?, ?, ?, 1)',
+            [logId, 'kernel_built', JSON.stringify({ version, signature: compilation.signature })]
+          );
 
-          // Gizli çalışma mantığını çalıştır - v1
-          executeHiddenLogic(1, name);
-
-          res.status(200).json({ 
-            message: `Dağıtım merkezi "${name}" olarak adlandırıldı ve kilitlendi`,
-            name: name
+          res.status(201).json({
+            status: 'success',
+            message: `Kernel ${version} compiled and saved`,
+            kernel: {
+              id: kernelId,
+              version,
+              signature: compilation.signature.substring(0, 16) + '...',
+              checksum: compilation.checksum.substring(0, 16) + '...',
+              size: compilation.size,
+              binaryPath: binaryPath,
+              sourceCode: compilation.sourceCode
+            }
           });
         }
       );
@@ -159,189 +288,103 @@ app.post('/api/distribution-center/set-name', (req, res) => {
   );
 });
 
-// 3. Dosya yükleme
-app.post('/api/distribution-center/upload', upload.single('file'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ message: 'Dosya seçilmedi' });
-  }
-
-  // Dağıtım merkezi adlandırıldı mı?
-  db.get(
-    'SELECT name, is_locked FROM distribution_center WHERE id = 1',
-    (err, row) => {
-      if (err) {
-        return res.status(500).json({ message: 'Veritabanı hatası' });
-      }
-
-      if (!row || row.is_locked === 0) {
-        fs.unlinkSync(req.file.path); // Dosyayı sil
-        return res.status(403).json({ message: 'Dağıtım merkezi henüz adlandırılmamış' });
-      }
-
-      // Dosya kurallarını kontrol et
-      const fileValidation = validateFile(req.file);
-      if (!fileValidation.valid) {
-        fs.unlinkSync(req.file.path); // Dosyayı sil
-        return res.status(400).json({ message: fileValidation.message });
-      }
-
-      // Dosyayı veritabanına kaydet
-      const fileId = uuidv4();
-      const clientIp = req.ip || req.connection.remoteAddress;
-
-      db.run(
-        `INSERT INTO uploads (id, file_name, original_name, file_size, mime_type, uploader_ip, file_path, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'active')`,
-        [fileId, req.file.filename, req.file.originalname, req.file.size, req.file.mimetype, clientIp, req.file.path],
-        (err) => {
-          if (err) {
-            fs.unlinkSync(req.file.path);
-            return res.status(500).json({ message: 'Dosya kaydedilemedi' });
-          }
-
-          // Gizli çalışma mantığını çalıştır - v2
-          executeHiddenLogic(2, row.name, fileId);
-
-          res.status(200).json({
-            message: 'Dosya başarıyla yüklendi',
-            fileId: fileId,
-            fileName: req.file.originalname,
-            size: req.file.size
-          });
-        }
-      );
-    }
-  );
-});
-
-// 4. Yüklenen dosyaları listele
-app.get('/api/distribution-center/files', (req, res) => {
+app.get('/api/kernel/list', (req, res) => {
   db.all(
-    'SELECT id, original_name, file_size, uploaded_at FROM uploads WHERE status = "active" ORDER BY uploaded_at DESC',
+    'SELECT id, version, signature, checksum, size, downloads, created_at FROM kernel_versions ORDER BY created_at DESC',
     (err, rows) => {
-      if (err) {
-        return res.status(500).json({ error: 'Veritabanı hatası' });
-      }
+      if (err) return res.status(500).json({ error: 'Database error' });
 
-      res.json({ files: rows });
+      const kernels = (rows || []).map(row => ({
+        id: row.id,
+        version: row.version,
+        signature: row.signature.substring(0, 16) + '...',
+        checksum: row.checksum.substring(0, 16) + '...',
+        size: row.size,
+        downloads: row.downloads,
+        createdAt: row.created_at
+      }));
+
+      res.json({ kernels });
     }
   );
 });
 
-// 5. Dosya indir
-app.get('/api/distribution-center/download/:fileId', (req, res) => {
-  const { fileId } = req.params;
+app.get('/api/kernel/download/:kernelId', (req, res) => {
+  const { kernelId } = req.params;
+  const clientIp = req.ip;
 
   db.get(
-    'SELECT file_path, original_name FROM uploads WHERE id = ? AND status = "active"',
-    [fileId],
+    'SELECT binary_path, version, signature FROM kernel_versions WHERE id = ?',
+    [kernelId],
     (err, row) => {
       if (err || !row) {
-        return res.status(404).json({ message: 'Dosya bulunamadı' });
+        return res.status(404).json({ error: 'Kernel not found' });
       }
 
-      res.download(row.file_path, row.original_name);
+      db.run('UPDATE kernel_versions SET downloads = downloads + 1 WHERE id = ?', [kernelId]);
+
+      const logId = uuidv4();
+      db.run(
+        'INSERT INTO system_logs (id, action, metadata, hidden) VALUES (?, ?, ?, 1)',
+        [logId, 'kernel_download', JSON.stringify({ kernelId, ip: clientIp, timestamp: new Date().toISOString() })]
+      );
+
+      const binary = fs.readFileSync(row.binary_path);
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Content-Disposition', `attachment; filename="ant-core-${row.version}.bin"`);
+      res.setHeader('X-Signature', row.signature);
+      res.send(binary);
     }
   );
 });
 
-// ==================== GİZLİ ÇALIŞMA MANTIKLARI ====================
+app.get('/api/kernel/source/:kernelId', (req, res) => {
+  const { kernelId } = req.params;
 
-function executeHiddenLogic(version, centerName, fileId = null) {
-  const logId = uuidv4();
-  const timestamp = new Date().toISOString();
-
-  if (version === 1) {
-    // v1: Merkez adlandırılırken çalışan gizli mantık
-    const result = {
-      action: 'center_initialized',
-      center_name: centerName,
-      timestamp: timestamp,
-      security_level: 'locked'
-    };
-
-    db.run(
-      'INSERT INTO logic_logs (id, logic_version, executed_at, result, hidden) VALUES (?, ?, ?, ?, 1)',
-      [logId, 1, timestamp, JSON.stringify(result)],
-      (err) => {
-        if (!err) {
-          console.log('🔒 [GİZLİ] v1 Mantığı çalıştırıldı:', centerName);
-        }
+  db.get(
+    'SELECT source_code FROM kernel_builds WHERE kernel_id = ?',
+    [kernelId],
+    (err, row) => {
+      if (err || !row) {
+        return res.status(404).json({ error: 'Source not found' });
       }
-    );
-  } else if (version === 2) {
-    // v2: Dosya yüklenmesinde çalışan gizli mantık
-    const result = {
-      action: 'file_processed',
-      file_id: fileId,
-      center_name: centerName,
-      timestamp: timestamp,
-      validation: 'passed',
-      processing_status: 'completed'
-    };
 
-    db.run(
-      'INSERT INTO logic_logs (id, logic_version, executed_at, result, hidden) VALUES (?, ?, ?, ?, 1)',
-      [logId, 2, timestamp, JSON.stringify(result)],
-      (err) => {
-        if (!err) {
-          console.log('📦 [GİZLİ] v2 Mantığı çalıştırıldı:', fileId);
-        }
+      res.setHeader('Content-Type', 'text/plain');
+      res.send(row.source_code);
+    }
+  );
+});
+
+app.post('/api/files/upload', upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file' });
+
+  const fileId = uuidv4();
+  db.run(
+    'INSERT INTO files (id, filename, original_name, size, path) VALUES (?, ?, ?, ?, ?)',
+    [fileId, req.file.filename, req.file.originalname, req.file.size, req.file.path],
+    (err) => {
+      if (err) {
+        fs.unlinkSync(req.file.path);
+        return res.status(500).json({ error: 'Upload failed' });
       }
-    );
-  }
-}
+      res.status(201).json({ fileId, filename: req.file.originalname, size: req.file.size });
+    }
+  );
+});
 
-// ==================== DOSYA KURALLARI ====================
-
-function validateFile(file) {
-  // İzin verilen dosya tipleri
-  const allowedMimeTypes = [
-    'application/zip',
-    'application/x-rar-compressed',
-    'application/x-7z-compressed',
-    'application/gzip',
-    'application/x-tar'
-  ];
-
-  const fileExtension = path.extname(file.originalname).toLowerCase();
-  const allowedExtensions = ['.zip', '.rar', '.7z', '.tar', '.gz', '.tgz'];
-
-  // Uzantı kontrolü
-  if (!allowedExtensions.includes(fileExtension)) {
-    return {
-      valid: false,
-      message: `İzin verilmeyen dosya tipi: ${fileExtension}`
-    };
-  }
-
-  // Boyut kontrolü (500MB)
-  if (file.size > 500 * 1024 * 1024) {
-    return {
-      valid: false,
-      message: 'Dosya çok büyük (max 500MB)'
-    };
-  }
-
-  // MIME type kontrolü
-  if (!allowedMimeTypes.includes(file.mimetype)) {
-    return {
-      valid: false,
-      message: 'Dosya formatı uygun değil'
-    };
-  }
-
-  return { valid: true };
-}
-
-// ==================== SUNUCU BAŞLAT ====================
+app.get('/api/files/list', (req, res) => {
+  db.all(
+    'SELECT id, original_name, size, uploaded_at FROM files ORDER BY uploaded_at DESC',
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: 'Database error' });
+      res.json({ files: rows || [] });
+    }
+  );
+});
 
 app.listen(PORT, () => {
-  console.log(`🚀 Dağıtım Merkezi sunucusu ${PORT} portunda çalışıyor`);
-  console.log(`📍 URL: http://localhost:${PORT}`);
+  console.log(`Distribution Center running on port ${PORT}`);
+  console.log(`Ant Kernel Compiler integrated`);
 });
 
-// Veritabanı kapatma
-process.on('exit', () => {
-  db.close();
-});
+process.on('exit', () => db.close());
