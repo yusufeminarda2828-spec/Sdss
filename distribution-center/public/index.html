@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dağıtım Merkezi - Yönetim Paneli</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        header {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+        }
+        h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 20px;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        .status-badge.locked {
+            background: #27ae60;
+            color: white;
+        }
+        .status-badge.unlocked {
+            background: #e74c3c;
+            color: white;
+        }
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .card h2 {
+            color: #1e3c72;
+            margin-bottom: 20px;
+            font-size: 22px;
+            border-bottom: 2px solid #2a5298;
+            padding-bottom: 15px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+        input[type="text"],
+        input[type="file"],
+        select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        input[type="text"]:focus,
+        input[type="file"]:focus,
+        select:focus {
+            outline: none;
+            border-color: #2a5298;
+            box-shadow: 0 0 0 3px rgba(42, 82, 152, 0.1);
+        }
+        input:disabled {
+            background-color: #f5f5f5;
+            color: #999;
+            cursor: not-allowed;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 10px;
+        }
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(42, 82, 152, 0.3);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .name-display {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 20px;
+            font-weight: bold;
+            min-height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .file-upload-area {
+            border: 2px dashed #2a5298;
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f8f9fa;
+        }
+        .file-upload-area:hover {
+            background: #f0f0ff;
+            border-color: #1e3c72;
+        }
+        .file-upload-area.active {
+            background: #e8f0ff;
+            border-color: #1e3c72;
+        }
+        .file-list {
+            margin-top: 20px;
+        }
+        .file-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .file-info {
+            flex: 1;
+        }
+        .file-name {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        .file-size {
+            font-size: 12px;
+            color: #999;
+        }
+        .file-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .btn-small {
+            padding: 8px 15px;
+            font-size: 12px;
+            background: #2a5298;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-small:hover {
+            background: #1e3c72;
+        }
+        .message {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+            animation: slideIn 0.3s ease-out;
+        }
+        .message.show {
+            display: block;
+        }
+        .message.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .message.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateY(-10px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        .joke-section {
+            grid-column: 1 / -1;
+        }
+        .joke-card {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .joke-setup {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        .joke-punchline {
+            color: #555;
+            font-style: italic;
+        }
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            .joke-section {
+                grid-column: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏢 Dağıtım Merkezi</h1>
+            <div>Proje Yönetim Paneli</div>
+            <div class="status-badge" id="statusBadge">Bekleniyor...</div>
+        </header>
+
+        <div class="main-content">
+            <!-- Sol Panel: Merkez Ayarları -->
+            <div class="card">
+                <h2>🔐 Merkez Ayarları</h2>
+                <div id="nameMessage" class="message"></div>
+                
+                <div class="form-group">
+                    <label>Dağıtım Merkezi Adı</label>
+                    <div class="name-display" id="nameDisplay">
+                        İsim henüz belirlenmedi
+                    </div>
+                </div>
+
+                <div id="setupForm">
+                    <div class="form-group">
+                        <label for="centerName">Merkez Adını Belirle</label>
+                        <input 
+                            type="text" 
+                            id="centerName" 
+                            placeholder="Merkez adını gir..."
+                            maxlength="100"
+                        >
+                    </div>
+                    <button onclick="setDistributionCenterName()">Merkezi Adlandır & Kilitle</button>
+                </div>
+            </div>
+
+            <!-- Sağ Panel: Dosya Yönetimi -->
+            <div class="card">
+                <h2>📦 Dosya Yönetimi</h2>
+                <div id="fileMessage" class="message"></div>
+
+                <div class="form-group">
+                    <label for="fileInput">Proje Dosyası Seç</label>
+                    <div 
+                        class="file-upload-area" 
+                        id="uploadArea"
+                        ondrop="handleDrop(event)"
+                        ondragover="handleDragOver(event)"
+                        ondragleave="handleDragLeave(event)"
+                    >
+                        <div style="font-size: 30px; margin-bottom: 10px;">📁</div>
+                        <div>Dosya seç veya sürükle</div>
+                        <small style="color: #999; margin-top: 5px; display: block;">
+                            Max 500MB (.zip, .rar, .7z, .tar, .gz)
+                        </small>
+                        <input 
+                            type="file" 
+                            id="fileInput" 
+                            accept=".zip,.rar,.7z,.tar,.gz,.tgz"
+                            style="display: none;"
+                            onchange="handleFileSelect(event)"
+                        >
+                    </div>
+                </div>
+
+                <button onclick="document.getElementById('fileInput').click()">
+                    Dosya Seç
+                </button>
+                <button id="uploadBtn" onclick="uploadFile()" style="display: none;">
+                    Yükle
+                </button>
+
+                <div class="file-list" id="fileList"></div>
+            </div>
+
+            <!-- Şaka Bölümü -->
+            <div class="card joke-section">
+                <h2>😂 Şaka Üreteci</h2>
+                <div id="jokeMessage" class="message"></div>
+
+                <div class="form-group">
+                    <label for="jokeCategory">Kategori Seç</label>
+                    <select id="jokeCategory">
+                        <option value="">Rastgele</option>
+                    </select>
+                </div>
+
+                <button onclick="getRandomJoke()">Rastgele Şaka Üret</button>
+                <button onclick="getJokeByCategory()" style="margin-top: 0; background: #6c757d;">Kategoriden Şaka Üret</button>
+
+                <div id="jokeContainer"></div>
+
+                <div style="margin-top: 30px;">
+                    <h3 style="color: #333; margin-bottom: 15px;">📜 Şaka Geçmişi</h3>
+                    <div id="jokeHistory" style="max-height: 300px; overflow-y: auto;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = '/api';
+        let selectedFile = null;
+        let centerLocked = false;
+
+        // Sayfa yüklendiğinde
+        window.addEventListener('load', () => {
+            checkStatus();
+            loadJokeCategories();
+            loadJokeHistory();
+        });
+
+        // ==================== DURUM KONTROLÜ ====================
+        async function checkStatus() {
+            try {
+                const response = await fetch(`${API_URL}/distribution-center/status`);
+                const data = await response.json();
+
+                if (data.isLocked) {
+                    centerLocked = true;
+                    document.getElementById('nameDisplay').textContent = `🔒 ${data.name}`;
+                    document.getElementById('nameDisplay').style.background = 'linear-gradient(135deg, #27ae60 0%, #229954 100%)';
+                    document.getElementById('statusBadge').textContent = 'Merkez Kilitlendi ✓';
+                    document.getElementById('statusBadge').classList.add('locked');
+                    document.getElementById('setupForm').style.display = 'none';
+                } else {
+                    document.getElementById('statusBadge').textContent = 'Hazırlanıyor...';
+                    document.getElementById('statusBadge').classList.add('unlocked');
+                }
+            } catch (error) {
+                console.error('Hata:', error);
+                showMessage('Durum kontrol edilemedi', 'error', 'nameMessage');
+            }
+        }
+
+        // ==================== MERKEZ ADLANDIRMA ====================
+        async function setDistributionCenterName() {
+            const name = document.getElementById('centerName').value.trim();
+
+            if (!name) {
+                showMessage('Lütfen bir isim gir', 'error', 'nameMessage');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/distribution-center/set-name`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    centerLocked = true;
+                    document.getElementById('nameDisplay').textContent = `🔒 ${name}`;
+                    document.getElementById('nameDisplay').style.background = 'linear-gradient(135deg, #27ae60 0%, #229954 100%)';
+                    document.getElementById('setupForm').style.display = 'none';
+                    document.getElementById('statusBadge').textContent = 'Merkez Kilitlendi ✓';
+                    document.getElementById('statusBadge').classList.add('locked');
+                    showMessage(`✅ Merkez "${name}" olarak adlandırıldı!`, 'success', 'nameMessage');
+                } else {
+                    showMessage(data.message, 'error', 'nameMessage');
+                }
+            } catch (error) {
+                console.error('Hata:', error);
+                showMessage('Bağlantı hatası', 'error', 'nameMessage');
+            }
+        }
+
+        // ==================== DOSYA YÖNETİMİ ====================
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('uploadArea').classList.add('active');
+        }
+
+        function handleDragLeave(e) {
+            e.preventDefault();
+            document.getElementById('uploadArea').classList.remove('active');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('uploadArea').classList.remove('active');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                selectedFile = files[0];
+                updateFileDisplay();
+            }
+        }
+
+        function handleFileSelect(e) {
+            if (e.target.files.length > 0) {
+                selectedFile = e.target.files[0];
+                updateFileDisplay();
+            }
+        }
+
+        function updateFileDisplay() {
+            if (!selectedFile) return;
+
+            const fileSize = (selectedFile.size / 1024 / 1024).toFixed(2);
+            document.getElementById('uploadArea').innerHTML = `
+                <div style="font-size: 30px; margin-bottom: 10px;">✓</div>
+                <div><strong>${selectedFile.name}</strong></div>
+                <small style="color: #999;">${fileSize} MB</small>
+            `;
+            document.getElementById('uploadBtn').style.display = 'block';
+        }
+
+        async function uploadFile() {
+            if (!selectedFile) {
+                showMessage('Lütfen bir dosya seç', 'error', 'fileMessage');
+                return;
+            }
+
+            if (!centerLocked) {
+                showMessage('Önce merkezi adlandırmalısın', 'error', 'fileMessage');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            document.getElementById('uploadBtn').disabled = true;
+
+            try {
+                const response = await fetch(`${API_URL}/distribution-center/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showMessage(`✅ ${selectedFile.name} başarıyla yüklendi!`, 'success', 'fileMessage');
+                    selectedFile = null;
+                    document.getElementById('fileInput').value = '';
+                    document.getElementById('uploadArea').innerHTML = `
+                        <div style="font-size: 30px; margin-bottom: 10px;">📁</div>
+                        <div>Dosya seç veya sürükle</div>
+                    `;
+                    document.getElementById('uploadBtn').style.display = 'none';
+                    loadFiles();
+                } else {
+                    showMessage(data.message, 'error', 'fileMessage');
+                }
+            } catch (error) {
+                console.error('Hata:', error);
+                showMessage('Yükleme hatası', 'error', 'fileMessage');
+            } finally {
+                document.getElementById('uploadBtn').disabled = false;
+            }
+        }
+
+        async function loadFiles() {
+            try {
+                const response = await fetch(`${API_URL}/distribution-center/files`);
+                const data = await response.json();
+
+                if (data.files && data.files.length > 0) {
+                    document.getElementById('fileList').innerHTML = `
+                        <h3 style="color: #333; margin-bottom: 10px;">Yüklenen Dosyalar (${data.files.length})</h3>
+                        ${data.files.map(file => `
+                            <div class="file-item">
+                                <div class="file-info">
+                                    <div class="file-name">📦 ${file.original_name}</div>
+                                    <div class="file-size">
+                                        ${(file.file_size / 1024 / 1024).toFixed(2)} MB • 
+                                        ${new Date(file.uploaded_at).toLocaleString('tr-TR')}
+                                    </div>
+                                </div>
+                                <div class="file-actions">
+                                    <a href="${API_URL}/distribution-center/download/${file.id}" class="btn-small">İndir</a>
+                                </div>
+                            </div>
+                        `).join('')}
+                    `;
+                }
+            } catch (error) {
+                console.error('Dosyalar yüklenemedi:', error);
+            }
+        }
+
+        // ==================== ŞAKA API ====================
+        async function loadJokeCategories() {
+            try {
+                const response = await fetch(`${API_URL}/joke/categories`);
+                const data = await response.json();
+
+                if (data.categories && data.categories.length > 0) {
+                    const select = document.getElementById('jokeCategory');
+                    data.categories.forEach(category => {
+                        const option = document.createElement('option');
+                        option.value = category;
+                        option.textContent = category.charAt(0).toUpperCase() + category.slice(1);
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Kategoriler yüklenemedi:', error);
+            }
+        }
+
+        async function getRandomJoke() {
+            try {
+                const response = await fetch(`${API_URL}/joke/random`);
+                const joke = await response.json();
+
+                displayJoke(joke);
+                loadJokeHistory();
+            } catch (error) {
+                showMessage('Şaka alınamadı', 'error', 'jokeMessage');
+            }
+        }
+
+        async function getJokeByCategory() {
+            const category = document.getElementById('jokeCategory').value;
+            
+            if (!category) {
+                showMessage('Kategori seç', 'error', 'jokeMessage');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/joke/category/${category}`);
+                const joke = await response.json();
+
+                displayJoke(joke);
+                loadJokeHistory();
+            } catch (error) {
+                showMessage('Kategoriden şaka alınamadı', 'error', 'jokeMessage');
+            }
+        }
+
+        function displayJoke(joke) {
+            document.getElementById('jokeContainer').innerHTML = `
+                <div class="joke-card">
+                    <div class="joke-setup">${joke.setup}</div>
+                    <div class="joke-punchline">${joke.punchline}</div>
+                    <small style="color: #999; margin-top: 10px; display: block;">
+                        Tür: ${joke.type}
+                    </small>
+                </div>
+            `;
+        }
+
+        async function loadJokeHistory() {
+            try {
+                const response = await fetch(`${API_URL}/joke/history`);
+                const data = await response.json();
+
+                if (data.jokes && data.jokes.length > 0) {
+                    document.getElementById('jokeHistory').innerHTML = data.jokes.slice(0, 10).map(joke => `
+                        <div class="joke-card" style="margin-bottom: 10px; padding: 15px; font-size: 14px;">
+                            <div class="joke-setup">${joke.joke_text.substring(0, 60)}...</div>
+                            <small style="color: #999; margin-top: 5px; display: block;">
+                                ${new Date(joke.generated_at).toLocaleString('tr-TR')}
+                            </small>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Şaka geçmişi yüklenemedi:', error);
+            }
+        }
+
+        // ==================== YARDIMCI FONKSİYONLAR ====================
+        function showMessage(text, type, elementId) {
+            const messageEl = document.getElementById(elementId);
+            messageEl.textContent = text;
+            messageEl.className = `message show ${type}`;
+            
+            setTimeout(() => {
+                messageEl.classList.remove('show');
+            }, 5000);
+        }
+
+        // Dosyaları yükle
+        loadFiles();
+    </script>
+</body>
+</html>
