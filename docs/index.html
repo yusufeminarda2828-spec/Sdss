@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dağıtım Merkezi - Ant Kernel Factory</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0a0e27;
+            color: #e0e0e0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        header {
+            background: #1a1f3a;
+            border: 2px solid #00ff88;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-radius: 5px;
+        }
+        h1 {
+            color: #00ff88;
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+        .status {
+            color: #ffaa00;
+            font-size: 12px;
+        }
+        .section {
+            background: #1a1f3a;
+            border: 1px solid #00ff88;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+        .section h2 {
+            color: #00ff88;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            color: #00ff88;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+        input[type="text"],
+        input[type="file"],
+        select {
+            width: 100%;
+            background: #0a0e27;
+            border: 1px solid #00ff88;
+            color: #00ff88;
+            padding: 8px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        input[type="text"]:focus,
+        select:focus {
+            outline: none;
+            border-color: #ffaa00;
+            box-shadow: 0 0 5px #ffaa00;
+        }
+        button {
+            background: #00ff88;
+            color: #0a0e27;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #ffaa00;
+            color: #0a0e27;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .output {
+            background: #0a0e27;
+            border: 1px solid #00ff88;
+            padding: 15px;
+            margin-top: 15px;
+            border-radius: 3px;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .success {
+            color: #00ff88;
+        }
+        .error {
+            color: #ff4444;
+        }
+        .info {
+            color: #ffaa00;
+        }
+        .kernel-list {
+            margin-top: 15px;
+        }
+        .kernel-item {
+            background: #0a0e27;
+            border: 1px solid #00ff88;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 3px;
+            font-size: 11px;
+        }
+        .kernel-version {
+            color: #00ff88;
+            font-weight: bold;
+        }
+        .kernel-details {
+            color: #aaa;
+            margin-top: 5px;
+            font-size: 10px;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Ant Kernel Distribution Factory</h1>
+            <div class="status">Dağıtım Merkezi Sistemi - Üretim Modunda</div>
+        </header>
+
+        <div class="section">
+            <h2>Merkez Başlatma</h2>
+            <div class="input-group">
+                <label>Merkez Adı</label>
+                <input type="text" id="centerName" placeholder="Dağıtım merkezinin adını gir...">
+            </div>
+            <button onclick="initializeCenter()">Merkezi Başlat</button>
+            <div class="output" id="centerOutput"></div>
+        </div>
+
+        <div class="section">
+            <h2>Çekirdek Derlemesi (Compilation)</h2>
+            <div class="input-group">
+                <label>Sürüm Numarası</label>
+                <input type="text" id="kernelVersion" placeholder="1.0.0" value="1.0.0">
+            </div>
+            <button onclick="compileKernel()">Derle ve Üret</button>
+            <div class="output" id="compileOutput"></div>
+        </div>
+
+        <div class="section">
+            <h2>Üretilmiş Çekirdekler</h2>
+            <button onclick="listKernels()">Listeyi Yenile</button>
+            <div class="kernel-list" id="kernelListOutput"></div>
+        </div>
+
+        <div class="section">
+            <h2>Dosya Yönetimi</h2>
+            <div class="input-group">
+                <label>Dosya Yükle</label>
+                <input type="file" id="fileInput">
+            </div>
+            <button onclick="uploadFile()">Yükle</button>
+            <button onclick="listFiles()">Dosyaları Listele</button>
+            <div class="output" id="fileOutput"></div>
+        </div>
+
+        <div class="section">
+            <h2>Sistem Bilgisi</h2>
+            <p style="color: #ffaa00; font-size: 12px; line-height: 1.6;">
+                Ant Kernel Factory - Bozulmuş Cihazlar Onarım Sistemi<br>
+                <br>
+                Özellikleri:<br>
+                • Sıfır-Panik Garantisi<br>
+                • Core 0 İzolasyonu<br>
+                • Donanım Filtreleme<br>
+                • Dijital Hapishane (Virus İzolyasyonu)<br>
+                • İşık Hızında Boot<br>
+                <br>
+                Tüm işlemler gizli loglar'da kaydedilmektedir.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+
+        function log(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            const time = new Date().toLocaleTimeString();
+            const className = type;
+            element.innerHTML += `<div class="${className}">[${time}] ${message}</div>`;
+            element.scrollTop = element.scrollHeight;
+        }
+
+        function clearOutput(elementId) {
+            document.getElementById(elementId).innerHTML = '';
+        }
+
+        async function initializeCenter() {
+            const name = document.getElementById('centerName').value;
+            
+            if (!name) {
+                log('centerOutput', 'Hata: Merkez adı gerekli', 'error');
+                return;
+            }
+
+            clearOutput('centerOutput');
+            log('centerOutput', 'Merkez başlatılıyor...', 'info');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/center/initialize`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    log('centerOutput', `Başarılı: ${data.name} merkezi başlatıldı`, 'success');
+                    document.getElementById('centerName').disabled = true;
+                } else {
+                    log('centerOutput', `Hata: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                log('centerOutput', `Hata: ${error.message}`, 'error');
+            }
+        }
+
+        async function compileKernel() {
+            const version = document.getElementById('kernelVersion').value;
+            
+            if (!version) {
+                log('compileOutput', 'Hata: Sürüm numarası gerekli', 'error');
+                return;
+            }
+
+            clearOutput('compileOutput');
+            log('compileOutput', `Çekirdek ${version} derlenmeye başlandı...`, 'info');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/kernel/compile`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ version })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    log('compileOutput', `Derlenme başarılı: ${data.kernel.version}`, 'success');
+                    log('compileOutput', `Kernel ID: ${data.kernel.id}`, 'info');
+                    log('compileOutput', `İmza: ${data.kernel.signature}`, 'info');
+                    log('compileOutput', `Checksum: ${data.kernel.checksum}`, 'info');
+                    log('compileOutput', `Boyut: ${data.kernel.size} bytes`, 'info');
+                    listKernels();
+                } else {
+                    log('compileOutput', `Hata: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                log('compileOutput', `Hata: ${error.message}`, 'error');
+            }
+        }
+
+        async function listKernels() {
+            clearOutput('kernelListOutput');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/kernel/list`);
+                const data = await response.json();
+
+                if (data.kernels && data.kernels.length > 0) {
+                    data.kernels.forEach(kernel => {
+                        const html = `
+                            <div class="kernel-item">
+                                <div class="kernel-version">Sürüm: ${kernel.version}</div>
+                                <div class="kernel-details">
+                                    ID: ${kernel.id}<br>
+                                    İmza: ${kernel.signature}<br>
+                                    Checksum: ${kernel.checksum}<br>
+                                    Boyut: ${kernel.size} bytes<br>
+                                    İndirmeler: ${kernel.downloads}<br>
+                                    Oluşturuldu: ${new Date(kernel.createdAt).toLocaleString('tr-TR')}
+                                </div>
+                                <button style="margin-top: 10px;" onclick="downloadKernel('${kernel.id}')">İndir</button>
+                            </div>
+                        `;
+                        document.getElementById('kernelListOutput').innerHTML += html;
+                    });
+                } else {
+                    document.getElementById('kernelListOutput').innerHTML = '<div class="info">Henüz derlenmiş çekirdek yok</div>';
+                }
+            } catch (error) {
+                document.getElementById('kernelListOutput').innerHTML = `<div class="error">Hata: ${error.message}</div>`;
+            }
+        }
+
+        function downloadKernel(kernelId) {
+            window.location.href = `${API_BASE}/api/kernel/download/${kernelId}`;
+        }
+
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            
+            if (!fileInput.files.length) {
+                log('fileOutput', 'Hata: Dosya seç', 'error');
+                return;
+            }
+
+            clearOutput('fileOutput');
+            log('fileOutput', 'Dosya yükleniyor...', 'info');
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            try {
+                const response = await fetch(`${API_BASE}/api/files/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    log('fileOutput', `Başarılı: ${data.filename}`, 'success');
+                    log('fileOutput', `ID: ${data.fileId}`, 'info');
+                    log('fileOutput', `Boyut: ${data.size} bytes`, 'info');
+                    fileInput.value = '';
+                    listFiles();
+                } else {
+                    log('fileOutput', `Hata: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                log('fileOutput', `Hata: ${error.message}`, 'error');
+            }
+        }
+
+        async function listFiles() {
+            clearOutput('fileOutput');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/files/list`);
+                const data = await response.json();
+
+                if (data.files && data.files.length > 0) {
+                    log('fileOutput', `Toplam dosya: ${data.files.length}`, 'success');
+                    data.files.forEach(file => {
+                        log('fileOutput', `${file.original_name} (${file.size} bytes)`, 'info');
+                    });
+                } else {
+                    log('fileOutput', 'Henüz dosya yok', 'info');
+                }
+            } catch (error) {
+                log('fileOutput', `Hata: ${error.message}`, 'error');
+            }
+        }
+
+        window.addEventListener('load', listKernels);
+    </script>
+</body>
+</html>
